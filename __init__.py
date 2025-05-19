@@ -1,24 +1,55 @@
-import os
-from dotenv import load_dotenv
+import logging
+import azure.functions as func
 from azure.storage.blob import BlobServiceClient
+import os
 
-load_dotenv()
+def main(req: func.HttpRequest) -> func.HttpResponse:
+    logging.info('Python HTTP trigger function processed a request.')
 
-conection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
-container_name = os.getenv("CONTAINER")
+    try:
+        blob_name = req.params.get('blob_name')
+        alien_number = req.params.get('alien_number')
+        case_type = req.params.get('case_type')
+    except AttributeError:
+        return func.HttpResponse(
+             "Por favor, pasa los parámetros 'blob_name', 'alien_number' y 'case_type' en la URL.",
+             status_code=400
+        )
 
+    if not all([blob_name, alien_number, case_type]):
+        return func.HttpResponse(
+             "Por favor, proporciona valores para 'blob_name', 'alien_number' y 'case_type'.",
+             status_code=400
+        )
 
-def upload_blob(blob_name, alien_number, case_type): 
-    
-    metadata = {"AlienNumber": alien_number, "CaseType": case_type} 
+    connection_string = os.environ.get("AZURE_STORAGE_CONNECTION_STRING")
+    container_name = os.environ.get("CONTAINER")
 
-    blob_service_client = BlobServiceClient.from_connection_string(conection_string)
+    if not connection_string or not container_name:
+        logging.error("Las variables de entorno AZURE_STORAGE_CONNECTION_STRING o CONTAINER no están configuradas.")
+        return func.HttpResponse(
+             "Error de configuración de la función.",
+             status_code=500
+        )
 
-    blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
+    metadata = {"AlienNumber": alien_number, "CaseType": case_type}
 
-    blob_client.set_blob_metadata(metadata)
-    print(f"Blob {blob_name} metadata set to {metadata}")
+    try:
+        blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+        blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
+        blob_client.set_blob_metadata(metadata)
+        logging.info(f"Blob {blob_name} metadata set to {metadata}")
+        return func.HttpResponse(
+             f"Metadatos del blob {blob_name} establecidos correctamente.",
+             status_code=200
+        )
+    except Exception as e:
+        logging.error(f"Error al establecer los metadatos del blob: {e}")
+        return func.HttpResponse(
+             f"Error al establecer los metadatos del blob: {e}",
+             status_code=500
+        )
 
 if __name__ == "__main__":
-    blob_name = "ABEL EDUARDO CALVILLO SERNA-Appointment (1).pdf"
-    upload_blob(blob_name, "123456789", "example_case")
+    # Este bloque no se ejecutará en Azure Functions
+    pass
